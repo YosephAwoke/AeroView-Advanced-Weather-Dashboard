@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useWeather } from '../context/WeatherContext';
+import { useWeatherTheme } from '../hooks/useWeatherTheme';
 import { CityMinicard } from './CityMinicard';
-import { Plus, SunDim, Moon, Compass, ChevronDown, ChevronUp, MapPin, Loader2 } from 'lucide-react';
+import { Plus, SunDim, Moon, ChevronDown, ChevronUp, MapPin, Loader2 } from 'lucide-react';
 
 export const Sidebar = () => {
   const { cities, viewMode, setViewMode, addTrackedCity, isLoading } = useWeather();
+  const { theme } = useWeatherTheme();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [cityName, setCityName] = useState('');
   const [lat, setLat] = useState('');
@@ -73,18 +75,14 @@ export const Sidebar = () => {
     <aside className="w-full lg:w-[390px] h-full flex flex-col gap-5 z-10 relative">
       {/* 1. Header with branding and theme triggers */}
       <div className="glass-panel p-5 flex items-center justify-between shadow-glass border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-accent/20 border border-accent/20 text-accent animate-pulse-slow">
-            <Compass size={22} />
-          </div>
-          <div>
-            <h1 className="font-black text-xl tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-r from-textPrimary via-accent to-textPrimary">
-              Aetheris
-            </h1>
-            <p className="text-xs uppercase font-extrabold tracking-widest text-textSecondary opacity-80 mt-0.5">
-              Weather Intelligence
-            </p>
-          </div>
+        <div className="flex items-center min-w-0 pr-3">
+          <img
+            src={theme === 'dark' ? '/weather-whitelogo.png' : '/weather-darklogo.png'}
+            alt="AeroView logo"
+            className="h-14 md:h-16 w-auto max-w-[260px] object-contain"
+            loading="eager"
+            decoding="async"
+          />
         </div>
 
         {/* Theme mode toggle controls */}
