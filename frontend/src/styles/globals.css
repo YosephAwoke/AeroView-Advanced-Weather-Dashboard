@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+@layer base {
+  /* ==========================================
+     MATRIX THEME ENGINE DEFINITION
+     ========================================== */
+
+  /* DEFAULT / FALLBACK (LIGHT - CLEAR) */
+  :root, body[data-theme="light"][data-weather="clear"] {
+    --bg-gradient: linear-gradient(135deg, #fffbeb 0%, #bae6fd 50%, #7dd3fc 100%);
+    --card-bg: rgba(255, 255, 255, 0.45);
+    --card-border: rgba(255, 255, 255, 0.6);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --glow-color: rgba(251, 191, 36, 0.25);
+    --accent: #d97706;
+    --badge-bg: rgba(251, 191, 36, 0.15);
+  }
+
+  /* LIGHT - CLOUDY */
+  body[data-theme="light"][data-weather="cloudy"] {
+    --bg-gradient: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 50%, #94a3b8 100%);
+    --card-bg: rgba(255, 255, 255, 0.4);
+    --card-border: rgba(255, 255, 255, 0.55);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --glow-color: rgba(148, 163, 184, 0.2);
+    --accent: #475569;
+    --badge-bg: rgba(148, 163, 184, 0.15);
+  }
+
+  /* LIGHT - RAINY */
+  body[data-theme="light"][data-weather="rainy"] {
+    --bg-gradient: linear-gradient(135deg, #e2e8f0 0%, #93c5fd 50%, #60a5fa 100%);
+    --card-bg: rgba(255, 255, 255, 0.35);
+    --card-border: rgba(255, 255, 255, 0.5);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --glow-color: rgba(37, 99, 235, 0.2);
+    --accent: #2563eb;
+    --badge-bg: rgba(37, 99, 235, 0.15);
+  }
+
+  /* LIGHT - STORMY */
+  body[data-theme="light"][data-weather="stormy"] {
+    --bg-gradient: linear-gradient(135deg, #cbd5e1 0%, #64748b 50%, #475569 100%);
+    --card-bg: rgba(255, 255, 255, 0.25);
+    --card-border: rgba(255, 255, 255, 0.4);
+    --text-primary: #0f172a;
+    --text-secondary: #334155;
+    --glow-color: rgba(139, 92, 246, 0.25);
+    --accent: #7c3aed;
+    --badge-bg: rgba(139, 92, 246, 0.15);
+  }
+
+  /* LIGHT - SNOWY */
+  body[data-theme="light"][data-weather="snowy"] {
+    --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #e0f2fe 100%);
+    --card-bg: rgba(255, 255, 255, 0.5);
+    --card-border: rgba(255, 255, 255, 0.7);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --glow-color: rgba(56, 189, 248, 0.2);
+    --accent: #0284c7;
+    --badge-bg: rgba(56, 189, 248, 0.15);
+  }
+
+  /* DARK - CLEAR */
+  body[data-theme="dark"][data-weather="clear"] {
+    --bg-gradient: linear-gradient(135deg, #070a13 0%, #0b1528 50%, #0d1e3d 100%);
+    --card-bg: rgba(8, 15, 30, 0.45);
+    --card-border: rgba(56, 189, 248, 0.22);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --glow-color: rgba(56, 189, 248, 0.35);
+    --accent: #38bdf8;
+    --badge-bg: rgba(56, 189, 248, 0.12);
+  }
+
+  /* DARK - CLOUDY */
+  body[data-theme="dark"][data-weather="cloudy"] {
+    --bg-gradient: linear-gradient(135deg, #030712 0%, #111827 50%, #1f2937 100%);
+    --card-bg: rgba(17, 24, 39, 0.5);
+    --card-border: rgba(156, 163, 175, 0.15);
+    --text-primary: #f8fafc;
+    --text-secondary: #9ca3af;
+    --glow-color: rgba(156, 163, 175, 0.2);
+    --accent: #9ca3af;
+    --badge-bg: rgba(156, 163, 175, 0.08);
+  }
+
+  /* DARK - RAINY */
+  body[data-theme="dark"][data-weather="rainy"] {
+    --bg-gradient: linear-gradient(135deg, #03050c 0%, #091024 50%, #151f38 100%);
+    --card-bg: rgba(15, 23, 42, 0.5);
+    --card-border: rgba(96, 165, 250, 0.2);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --glow-color: rgba(96, 165, 250, 0.3);
+    --accent: #60a5fa;
+    --badge-bg: rgba(96, 165, 250, 0.1);
+  }
+
+  /* DARK - STORMY */
+  body[data-theme="dark"][data-weather="stormy"] {
+    --bg-gradient: linear-gradient(135deg, #040407 0%, #0d091a 50%, #180f33 100%);
+    --card-bg: rgba(15, 10, 28, 0.55);
+    --card-border: rgba(139, 92, 246, 0.25);
+    --text-primary: #f8fafc;
+    --text-secondary: #a78bfa;
+    --glow-color: rgba(139, 92, 246, 0.35);
+    --accent: #a78bfa;
+    --badge-bg: rgba(139, 92, 246, 0.1);
+  }
+
+  /* DARK - SNOWY */
+  body[data-theme="dark"][data-weather="snowy"] {
+    --bg-gradient: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%);
+    --card-bg: rgba(30, 41, 59, 0.45);
+    --card-border: rgba(224, 242, 254, 0.2);
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --glow-color: rgba(224, 242, 254, 0.2);
+    --accent: #e0f2fe;
+    --badge-bg: rgba(224, 242, 254, 0.08);
+  }
+
+  body {
+    background: var(--bg-gradient);
+    color: var(--text-primary);
+    transition: background 1.2s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                color 0.8s ease, 
+                border-color 0.8s ease,
+                box-shadow 0.8s ease;
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+/* ==========================================
+   GLASSMORPHISM & CUSTOM WIDGET CLASSES
+   ========================================== */
+.glass-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 1.5rem;
+  transition: background 0.8s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              border-color 0.8s cubic-bezier(0.25, 0.8, 0.25, 1),
+              box-shadow 0.5s ease;
+}
+
+.glass-panel-hover {
+  composes: glass-panel;
+}
+.glass-panel-hover:hover {
+  box-shadow: var(--shadow-glass-hover);
+  border-color: rgba(var(--accent), 0.4);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Custom Recharts overrides to match glassmorphism tooltips */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--card-border) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-radius: 0.75rem !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* 3D Scene settings */
+.perspective-container {
+  perspective: 1200px;
+}
+
+.transform-3d {
+  transform-style: preserve-3d;
+}
