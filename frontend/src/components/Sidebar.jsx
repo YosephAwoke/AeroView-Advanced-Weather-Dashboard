@@ -5,7 +5,7 @@ import { CityMinicard } from './CityMinicard';
 import { Plus, SunDim, Moon, ChevronDown, ChevronUp, MapPin, Loader2 } from 'lucide-react';
 
 export const Sidebar = () => {
-  const { cities, viewMode, setViewMode, addTrackedCity, isLoading } = useWeather();
+  const { cities, viewMode, setViewMode, addTrackedCity, isLoading, reorderCities } = useWeather();
   const { theme } = useWeatherTheme();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [cityName, setCityName] = useState('');
@@ -416,8 +416,30 @@ export const Sidebar = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-4 max-h-[calc(100vh-270px)]">
-            {cities.map((city) => (
-              <CityMinicard key={city._id} city={city} />
+            {cities.map((city, index) => (
+              <div
+                key={city._id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', city._id);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const draggedId = e.dataTransfer.getData('text/plain');
+                  if (!draggedId || draggedId === city._id) return;
+                  const srcIndex = cities.findIndex(c => c._id === draggedId);
+                  const dstIndex = index;
+                  if (srcIndex === -1) return;
+                  const next = [...cities];
+                  const [moved] = next.splice(srcIndex, 1);
+                  next.splice(dstIndex, 0, moved);
+                  reorderCities(next);
+                }}
+              >
+                <CityMinicard city={city} />
+              </div>
             ))}
           </div>
         )}

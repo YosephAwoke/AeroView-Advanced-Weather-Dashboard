@@ -27,12 +27,13 @@ const getPhysicsModelLabel = (condition) => {
 const DashboardContent = () => {
   // Activate Matrix Theme selectors on document body
   const { weather } = useWeatherTheme();
+  const [atmoEnabled, setAtmoEnabled] = React.useState(true);
 
   return (
     <div className="relative min-h-screen w-full flex flex-col items-center justify-start p-5 md:p-8 lg:p-10 overflow-x-hidden select-none">
       
       {/* Dynamic 60 FPS Particle Weather Canvas Backdrop */}
-      <WeatherAtmosphere />
+      <WeatherAtmosphere enabled={atmoEnabled} />
 
       {/* Main Glassmorphic workspace grid (expanded size boundaries) */}
       <div className="w-full max-w-[1550px] min-h-[90vh] flex flex-col lg:flex-row gap-6 lg:gap-8 relative z-10">
@@ -65,15 +66,20 @@ const DashboardContent = () => {
       </div>
 
       {/* DYNAMIC ATMOSPHERIC PHYSICS HUD BADGE */}
-      <div className="fixed bottom-5 right-5 z-40 glass-panel px-4 py-2 border-white/10 text-xs font-bold uppercase tracking-wider shadow-glow bg-black/20 hover:scale-105 hover:bg-black/35 cursor-crosshair transition-all duration-300 flex items-center gap-2 text-textPrimary">
+      <button
+        onClick={() => setAtmoEnabled((s) => !s)}
+        aria-pressed={!atmoEnabled ? 'false' : 'true'}
+        className={`fixed bottom-5 right-5 z-40 glass-panel px-4 py-2 border-white/10 text-xs font-bold uppercase tracking-wider shadow-glow ${atmoEnabled ? 'bg-black/20 hover:bg-black/35' : 'bg-white/5 hover:bg-white/10'} focus:outline-none transition-all duration-300 flex items-center gap-2 text-textPrimary`}
+        title={atmoEnabled ? 'Disable backdrop animation' : 'Enable backdrop animation'}
+      >
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
         <Activity size={12} className="text-accent animate-pulse" />
         <span className="text-textSecondary">Backdrop Render:</span>
-        <span className="text-accent font-extrabold tracking-widest">{getPhysicsModelLabel(weather)} (60 FPS)</span>
-      </div>
+        <span className="text-accent font-extrabold tracking-widest">{getPhysicsModelLabel(weather)} {atmoEnabled ? '(60 FPS)' : '(disabled)'}</span>
+      </button>
       
       {/* Dynamic Ambient Blur Backdrop Orbs */}
       <div className="absolute top-[20%] left-[10%] w-[450px] h-[450px] bg-accent/5 rounded-full blur-[160px] pointer-events-none z-0 transition-colors duration-1000" />

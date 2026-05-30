@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWeatherTheme } from '../hooks/useWeatherTheme';
 
 /**
@@ -6,13 +6,13 @@ import { useWeatherTheme } from '../hooks/useWeatherTheme';
  * Renders fluid, 60 FPS responsive animations synchronized with the current active city's
  * weather state (clear, cloudy, rainy, stormy, snowy) and the active appearance theme (light, dark).
  */
-export const WeatherAtmosphere = () => {
+export const WeatherAtmosphere = ({ enabled = true }) => {
   const canvasRef = useRef(null);
   const { weather, theme } = useWeatherTheme();
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !enabled) return;
 
     const ctx = canvas.getContext('2d');
     let animationId;
@@ -26,13 +26,15 @@ export const WeatherAtmosphere = () => {
     // Solar flare rotation for clear weather
     let solarAngle = 0;
 
-    // Handle high-DPI scaling
+    // Handle high-DPI scaling (reset transforms then scale to DPR)
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      if (typeof ctx.resetTransform === 'function') ctx.resetTransform();
+      else ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       initParticles(rect.width, rect.height);
     };
 
@@ -75,70 +77,57 @@ export const WeatherAtmosphere = () => {
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // Core 60 FPS animation loop
-    const animate = () => {
-      const width = canvas.width / (window.devicePixelRatio || 1);
-      const height = canvas.height / (window.devicePixelRatio || 1);
-      const isDark = theme === 'dark';
+    // Adaptive animation: respects prefers-reduced-motion and document visibility.
+    const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    let reducedMotion = prefersReducedMotion ? prefersReducedMotion.matches : false;
 
-      ctx.clearRect(0, 0, width, height);
+    const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent || '');
+    const targetFps = isMobile ? 30 : 60;
+    const frameInterval = 1000 / targetFps;
 
+    const animateFrame = (width, height, isDark) => {
       // --- 1. RENDER RAIN & STORMY TELEMETRY ---
       if (weather === 'rainy' || weather === 'stormy') {
         if (isDark) {
           ctx.strokeStyle = weather === 'stormy' ? 'rgba(167, 139, 250, 0.45)' : 'rgba(147, 197, 253, 0.4)';
         } else {
-          // Light Mode: draw highly visible sky-blue / blue rain lines
           ctx.strokeStyle = weather === 'stormy' ? 'rgba(124, 58, 237, 0.4)' : 'rgba(37, 99, 235, 0.35)';
         }
-        
         ctx.lineWidth = 1.3;
         ctx.lineCap = 'round';
 
         particles.forEach((p) => {
           ctx.beginPath();
           ctx.globalAlpha = p.opacity;
-          // Apply slight angle to falling paths
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(p.x - 2, p.y + p.length);
           ctx.stroke();
 
-          // Move
           p.y += p.speed;
           p.x -= 0.5;
 
-          // Recycle
           if (p.y > height) {
             p.y = -p.length;
             p.x = Math.random() * width;
           }
         });
 
-        // Stormy Lightning Strike engine
         if (weather === 'stormy') {
           const now = Date.now();
           if (now > nextLightningTime) {
-            // Trigger primary flash
             lightningFlash = 0.95;
             nextLightningTime = now + 5000 + Math.random() * 9000;
           }
-
           if (lightningFlash > 0) {
-            // Draw electric background glow
             if (isDark) {
               ctx.fillStyle = `rgba(139, 92, 246, ${lightningFlash * 0.09})`;
             } else {
-              // Light Mode: draw an intense dark stormy sky flash
               ctx.fillStyle = `rgba(30, 27, 75, ${lightningFlash * 0.12})`;
             }
             ctx.fillRect(0, 0, width, height);
-
-            // Decay flash rate with subtle bounce
             lightningFlash -= 0.06;
-            
-            // Double flash probability
             if (lightningFlash < 0.3 && Math.random() > 0.95) {
-              lightningFlash = 0.85; // Mini secondary strike
+              lightningFlash = 0.85;
             }
           }
         }
@@ -146,23 +135,15 @@ export const WeatherAtmosphere = () => {
 
       // --- 2. RENDER SNOWY TELEMETRY ---
       else if (weather === 'snowy') {
-        // Dark Mode: pure white flakes; Light Mode: beautiful ice-blue crystals
         ctx.fillStyle = isDark ? '#ffffff' : 'rgba(14, 165, 233, 0.75)';
-        
         particles.forEach((p) => {
           ctx.beginPath();
           ctx.globalAlpha = p.opacity;
-          // Soft blur edge for snowy drops
           ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2, true);
           ctx.fill();
-
-          // Move
           p.y += p.speed;
           p.d += p.swingSpeed;
-          // Sway horizontally using high frequency trigonometry
           p.x += Math.sin(p.d) * 0.4;
-
-          // Recycle
           if (p.y > height || p.x > width || p.x < 0) {
             p.y = -10;
             p.x = Math.random() * width;
@@ -172,27 +153,17 @@ export const WeatherAtmosphere = () => {
 
       // --- 3. RENDER CLOUDY BACKGROUND MISTS ---
       else if (weather === 'cloudy') {
-        ctx.fillStyle = isDark 
-          ? 'rgba(71, 85, 105, 1)' 
-          : 'rgba(100, 116, 139, 1)';
-
+        ctx.fillStyle = isDark ? 'rgba(71, 85, 105, 1)' : 'rgba(100, 116, 139, 1)';
         particles.forEach((p) => {
           ctx.beginPath();
           ctx.globalAlpha = p.opacity;
-          
-          // Create radial gradient for a soft fluffy fog look
           const gradient = ctx.createRadialGradient(p.x, p.y, p.r * 0.1, p.x, p.y, p.r);
           gradient.addColorStop(0, isDark ? 'rgba(71, 85, 105, 0.45)' : 'rgba(148, 163, 184, 0.12)');
           gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-          
           ctx.fillStyle = gradient;
           ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
           ctx.fill();
-
-          // Horizontal drift
           p.x += p.speed;
-          
-          // Recycle
           if (p.x - p.r > width) {
             p.x = -p.r;
             p.y = Math.random() * height;
@@ -202,45 +173,90 @@ export const WeatherAtmosphere = () => {
 
       // --- 4. RENDER CLEAR SOLAR FLARE CORONA ---
       else if (weather === 'clear') {
-        solarAngle += 0.0012; // Extremely slow spin
-        
+        solarAngle += 0.0012;
         ctx.beginPath();
         const solarX = width * 0.88;
         const solarY = height * 0.15;
         const baseRadius = 240;
-        
-        // Solar pulse oscillation
         const pulseRadius = baseRadius + Math.sin(solarAngle * 5) * 12;
-
         const solarGrad = ctx.createRadialGradient(solarX, solarY, 0, solarX, solarY, pulseRadius);
         if (isDark) {
-          // Moody stellar nebulae in Dark Mode
           solarGrad.addColorStop(0, 'rgba(56, 189, 248, 0.16)');
           solarGrad.addColorStop(0.3, 'rgba(99, 102, 241, 0.05)');
           solarGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         } else {
-          // Warm solar rays in Light Mode - highly visible golden auras
           solarGrad.addColorStop(0, 'rgba(245, 158, 11, 0.32)');
           solarGrad.addColorStop(0.4, 'rgba(251, 113, 133, 0.08)');
           solarGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         }
-
         ctx.fillStyle = solarGrad;
         ctx.arc(solarX, solarY, pulseRadius, 0, Math.PI * 2);
         ctx.fill();
       }
 
       ctx.globalAlpha = 1.0;
-      animationId = requestAnimationFrame(animate);
     };
 
-    animate();
+    // Loop runner that caps FPS and respects reduced-motion/visibility
+    let lastTime = performance.now();
+    const loop = (now) => {
+      animationId = requestAnimationFrame(loop);
+      const delta = now - lastTime;
+      if (delta < frameInterval) return;
+      lastTime = now - (delta % frameInterval);
+
+      const width = canvas.width / (window.devicePixelRatio || 1);
+      const height = canvas.height / (window.devicePixelRatio || 1);
+      const isDark = theme === 'dark';
+
+      ctx.clearRect(0, 0, width, height);
+      animateFrame(width, height, isDark);
+    };
+
+    const onPrefersChange = (e) => {
+      reducedMotion = e.matches;
+      if (reducedMotion && animationId) cancelAnimationFrame(animationId);
+      if (!reducedMotion) {
+        lastTime = performance.now();
+        animationId = requestAnimationFrame(loop);
+      }
+    };
+
+    if (prefersReducedMotion && typeof prefersReducedMotion.addEventListener === 'function') {
+      prefersReducedMotion.addEventListener('change', onPrefersChange);
+    }
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (animationId) cancelAnimationFrame(animationId);
+        animationId = null;
+      } else if (!reducedMotion && !animationId) {
+        lastTime = performance.now();
+        animationId = requestAnimationFrame(loop);
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // Start either a single static frame (reduced motion) or the animated loop
+    if (reducedMotion) {
+      // draw a single subtle frame
+      resizeCanvas();
+      animateFrame(canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1), theme === 'dark');
+    } else {
+      lastTime = performance.now();
+      animationId = requestAnimationFrame(loop);
+    }
 
     return () => {
-      cancelAnimationFrame(animationId);
+      if (animationId) cancelAnimationFrame(animationId);
       window.removeEventListener('resize', resizeCanvas);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (prefersReducedMotion && typeof prefersReducedMotion.removeEventListener === 'function') {
+        prefersReducedMotion.removeEventListener('change', onPrefersChange);
+      }
     };
-  }, [weather, theme]);
+  }, [weather, theme, enabled]);
 
   return (
     <canvas

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 
 const WeatherContext = createContext(null);
@@ -65,7 +66,22 @@ export const WeatherProvider = ({ children }) => {
       const citiesRes = await fetchWithTimeout(`${BACKEND_URL}/cities`);
       if (!citiesRes.ok) throw new Error('Failed to retrieve cities list from backend');
       const citiesList = await citiesRes.json();
-      setCities(citiesList);
+      // Apply locally stored ordering if present
+      let orderedCities = citiesList;
+      try {
+        const storedOrder = JSON.parse(localStorage.getItem('city_order') || 'null');
+        if (Array.isArray(storedOrder) && storedOrder.length > 0) {
+          const byId = Object.fromEntries(citiesList.map(c => [c._id, c]));
+          const ordered = [];
+          storedOrder.forEach(id => { if (byId[id]) ordered.push(byId[id]); });
+          // append any new cities that weren't stored
+          citiesList.forEach(c => { if (!storedOrder.includes(c._id)) ordered.push(c); });
+          orderedCities = ordered;
+        }
+      } catch {
+        // ignore parse errors and fall back to server ordering
+      }
+      setCities(orderedCities);
 
       if (citiesList.length === 0) {
         setCitiesData({});
@@ -75,13 +91,13 @@ export const WeatherProvider = ({ children }) => {
       }
 
       const currentActiveCityId = activeCityIdRef.current;
-      const nextActiveCityId = citiesList.some(city => city._id === currentActiveCityId)
+      const nextActiveCityId = orderedCities.some(city => city._id === currentActiveCityId)
         ? currentActiveCityId
-        : citiesList[0]._id;
+        : orderedCities[0]._id;
 
       setActiveCityId(nextActiveCityId);
 
-      const activeCity = citiesList.find(city => city._id === nextActiveCityId);
+      const activeCity = orderedCities.find(city => city._id === nextActiveCityId);
       const cachedActiveWeather = citiesDataRef.current[nextActiveCityId];
 
       if (!cachedActiveWeather && activeCity) {
@@ -98,7 +114,7 @@ export const WeatherProvider = ({ children }) => {
 
       setIsLoading(false);
 
-      citiesList.forEach((city) => {
+      orderedCities.forEach((city) => {
         if (city._id === nextActiveCityId) return;
 
         void (async () => {
@@ -122,6 +138,17 @@ export const WeatherProvider = ({ children }) => {
       setIsLoading(false);
     }
   }, []);
+
+  // Allow reordering of tracked cities in UI; persist ordering to localStorage
+  const reorderCities = (newOrder) => {
+    setCities(newOrder);
+    try {
+      const ids = newOrder.map(c => c._id);
+      localStorage.setItem('city_order', JSON.stringify(ids));
+    } catch (e) {
+      console.error('Failed to persist city order', e);
+    }
+  };
 
   useEffect(() => {
     // Guard against React StrictMode double-mount in dev
@@ -217,7 +244,8 @@ export const WeatherProvider = ({ children }) => {
       setViewMode,
       addTrackedCity,
       removeTrackedCity,
-      refreshData: fetchAllData
+      refreshData: fetchAllData,
+      reorderCities
     }}>
       {children}
     </WeatherContext.Provider>
