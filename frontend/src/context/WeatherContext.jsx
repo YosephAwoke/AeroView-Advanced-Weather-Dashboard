@@ -20,11 +20,11 @@ export const WeatherProvider = ({ children }) => {
   const activeCityIdRef = useRef(null);
   const citiesDataRef = useRef({});
 
-  // Read theme viewMode preference: default to local storage, otherwise system preference
+  // Read theme viewMode preference: default to local storage, otherwise light mode
   const [viewMode, setViewMode] = useState(() => {
     const saved = localStorage.getItem('theme_preference');
     if (saved) return saved;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'light';
   });
 
   const BACKEND_URL = 'http://localhost:5000/api';

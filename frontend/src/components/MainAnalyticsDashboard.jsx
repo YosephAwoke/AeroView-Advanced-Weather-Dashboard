@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useWeather } from '../context/WeatherContext';
 import { useWeatherTheme } from '../hooks/useWeatherTheme';
 import { getWeatherIcon, getConditionLabel } from './CityMinicard';
@@ -326,13 +326,13 @@ export const MainAnalyticsDashboard = () => {
           <div className="flex gap-2.5">
             <button
               onClick={() => setActiveTab('hourly')}
-              className={`text-sm font-extrabold px-4 py-2 rounded-xl border transition-all duration-300 ${activeTab === 'hourly' ? 'bg-accent border-accent text-white shadow-glow' : 'bg-white/5 border-white/5 hover:border-white/10 text-textSecondary hover:text-textPrimary'}`}
+              className={`text-sm font-extrabold px-4 py-2 rounded-xl border transition-all duration-300 ${activeTab === 'hourly' ? (theme === 'light' ? 'bg-accent/10 border-accent text-slate-900 shadow-inner ring-1 ring-accent/20' : 'bg-accent border-accent text-white shadow-glow') : 'bg-white/5 border-white/5 hover:border-white/10 text-textSecondary hover:text-textPrimary'}`}
             >
               24-Hour Trends
             </button>
             <button
               onClick={() => setActiveTab('weekly')}
-              className={`text-sm font-extrabold px-4 py-2 rounded-xl border transition-all duration-300 ${activeTab === 'weekly' ? 'bg-accent border-accent text-white shadow-glow' : 'bg-white/5 border-white/5 hover:border-white/10 text-textSecondary hover:text-textPrimary'}`}
+              className={`text-sm font-extrabold px-4 py-2 rounded-xl border transition-all duration-300 ${activeTab === 'weekly' ? (theme === 'light' ? 'bg-accent/10 border-accent text-slate-900 shadow-inner ring-1 ring-accent/20' : 'bg-accent border-accent text-white shadow-glow') : 'bg-white/5 border-white/5 hover:border-white/10 text-textSecondary hover:text-textPrimary'}`}
             >
               7-Day Outlook
             </button>

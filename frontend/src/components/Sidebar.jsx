@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useWeather } from '../context/WeatherContext';
 import { useWeatherTheme } from '../hooks/useWeatherTheme';
 import { CityMinicard } from './CityMinicard';
@@ -9,11 +9,16 @@ export const Sidebar = () => {
   const { theme } = useWeatherTheme();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [cityName, setCityName] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState([]);
+  const [isSearchingCities, setIsSearchingCities] = useState(false);
   const [lat, setLat] = useState('');
   const [lon, setLon] = useState('');
   const [country, setCountry] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const searchTimeoutRef = useRef(null);
+  const suggestionAbortRef = useRef(null);
+  const selectionRef = useRef(false);
 
   // Quick preset catalog for easy portfolio testing
   const presets = [
@@ -29,6 +34,120 @@ export const Sidebar = () => {
     setLat(preset.lat.toString());
     setLon(preset.lon.toString());
     setCountry(preset.country);
+    setCitySuggestions([]);
+  };
+
+  useEffect(() => {
+    if (selectionRef.current) {
+      // A suggestion was just chosen; suppress the next auto-search cycle
+      selectionRef.current = false;
+      setIsSearchingCities(false);
+      setCitySuggestions([]);
+      if (suggestionAbortRef.current) suggestionAbortRef.current.abort();
+      return;
+    }
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    const query = cityName.trim();
+    if (query.length < 2) {
+      if (suggestionAbortRef.current) {
+        suggestionAbortRef.current.abort();
+      }
+      const resetTimer = setTimeout(() => {
+        setCitySuggestions([]);
+        setIsSearchingCities(false);
+      }, 0);
+
+      return () => {
+        clearTimeout(resetTimer);
+      };
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      if (suggestionAbortRef.current) {
+        suggestionAbortRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      suggestionAbortRef.current = controller;
+      setIsSearchingCities(true);
+
+      try {
+        const response = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=en&format=json`,
+          { signal: controller.signal }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to search cities');
+        }
+
+        const data = await response.json();
+        const results = Array.isArray(data?.results) ? data.results : [];
+        setCitySuggestions(results.map((item) => ({
+          id: `${item.id}-${item.name}-${item.country_code}`,
+          name: item.name,
+          country: item.country || '',
+          admin1: item.admin1 || '',
+          latitude: item.latitude,
+          longitude: item.longitude
+        })));
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setCitySuggestions([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearchingCities(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [cityName]);
+
+  const applyLocationSuggestion = (suggestion) => {
+    // Mark that a selection occurred to avoid the effect re-searching
+    selectionRef.current = true;
+    if (suggestionAbortRef.current) suggestionAbortRef.current.abort();
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    setCityName(suggestion.name);
+    setCountry(suggestion.country);
+    setLat(String(suggestion.latitude));
+    setLon(String(suggestion.longitude));
+    setCitySuggestions([]);
+    setFormError('');
+  };
+
+  const resolveCoordinates = async (name, countryHint) => {
+    const query = countryHint ? `${name} ${countryHint}` : name;
+    const response = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`
+    );
+
+    if (!response.ok) {
+      throw new Error('Could not look up location coordinates.');
+    }
+
+    const data = await response.json();
+    const result = data?.results?.[0];
+
+    if (!result) {
+      throw new Error('No matching city found. Please pick a suggestion or enter coordinates manually.');
+    }
+
+    return {
+      name: result.name || name,
+      country: result.country || countryHint || '',
+      lat: result.latitude,
+      lon: result.longitude
+    };
   };
 
   const handleFormSubmit = async (e) => {
@@ -36,34 +155,58 @@ export const Sidebar = () => {
     setFormError('');
     setIsSubmitting(true);
 
-    if (!cityName || !lat || !lon) {
-      setFormError('Name, Latitude, and Longitude are required.');
+    if (!cityName) {
+      setFormError('City name is required. Latitude and longitude are optional.');
       setIsSubmitting(false);
       return;
     }
 
-    const parsedLat = parseFloat(lat);
-    const parsedLon = parseFloat(lon);
+    let parsedLat = lat ? parseFloat(lat) : null;
+    let parsedLon = lon ? parseFloat(lon) : null;
 
-    if (isNaN(parsedLat) || parsedLat < -90 || parsedLat > 90) {
-      setFormError('Latitude must be a valid number between -90 and 90.');
+    if ((lat && Number.isNaN(parsedLat)) || (lon && Number.isNaN(parsedLon))) {
+      setFormError('Latitude and longitude must be valid numbers when provided.');
       setIsSubmitting(false);
       return;
     }
 
-    if (isNaN(parsedLon) || parsedLon < -180 || parsedLon > 180) {
-      setFormError('Longitude must be a valid number between -180 and 180.');
+    if (parsedLat !== null && (parsedLat < -90 || parsedLat > 90)) {
+      setFormError('Latitude must be between -90 and 90 when provided.');
       setIsSubmitting(false);
       return;
     }
 
-    const result = await addTrackedCity(cityName, parsedLat, parsedLon, country);
+    if (parsedLon !== null && (parsedLon < -180 || parsedLon > 180)) {
+      setFormError('Longitude must be between -180 and 180 when provided.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (parsedLat === null || parsedLon === null) {
+      try {
+        const resolved = await resolveCoordinates(cityName.trim(), country.trim());
+        parsedLat = resolved.lat;
+        parsedLon = resolved.lon;
+        if (!country.trim() && resolved.country) {
+          setCountry(resolved.country);
+        }
+        setLat(String(parsedLat));
+        setLon(String(parsedLon));
+      } catch (error) {
+        setFormError(error.message || 'Please choose a suggestion or add coordinates manually.');
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    const result = await addTrackedCity(cityName.trim(), parsedLat, parsedLon, country.trim());
     
     if (result.success) {
       setCityName('');
       setLat('');
       setLon('');
       setCountry('');
+      setCitySuggestions([]);
       setIsFormOpen(false);
     } else {
       setFormError(result.message || 'Failed to add custom city location.');
@@ -74,12 +217,12 @@ export const Sidebar = () => {
   return (
     <aside className="w-full lg:w-[390px] h-full flex flex-col gap-5 z-10 relative">
       {/* 1. Header with branding and theme triggers */}
-      <div className="glass-panel p-5 flex items-center justify-between shadow-glass border-white/10">
+      <div className="glass-panel p-3 flex items-center justify-between shadow-glass border-white/10">
         <div className="flex items-center min-w-0 pr-3">
           <img
-            src={theme === 'dark' ? '/weather-whitelogo.png' : '/weather-darklogo.png'}
+            src={theme === 'dark' ? '/weather-darklogo.png' : '/weather-whitelogo.png'}
             alt="AeroView logo"
-            className="h-14 md:h-16 w-auto max-w-[260px] object-contain"
+            className={`w-auto max-w-[360px] object-contain ${theme === 'dark' ? 'h-[4.5rem] md:h-[5rem]' : 'h-14 md:h-16'}`}
             loading="eager"
             decoding="async"
           />
@@ -137,19 +280,61 @@ export const Sidebar = () => {
                 <label className="text-[10px] uppercase font-black text-textSecondary tracking-wider block mb-1">
                   Location Name
                 </label>
-                <input
-                  type="text"
-                  value={cityName}
-                  onChange={(e) => setCityName(e.target.value)}
-                  placeholder="e.g. Paris"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-sm text-textPrimary placeholder-textSecondary/50 focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 transition-all"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={cityName}
+                    onChange={(e) => setCityName(e.target.value)}
+                    placeholder="e.g. Paris"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-sm text-textPrimary placeholder-textSecondary/50 focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 transition-all"
+                    autoComplete="off"
+                  />
+
+                  {cityName.trim().length >= 2 && (isSearchingCities || citySuggestions.length > 0) && (
+                    <div
+                      className={`absolute left-0 right-0 top-[calc(100%+8px)] z-20 rounded-xl border backdrop-blur-xl shadow-2xl overflow-hidden ${
+                        theme === 'light'
+                          ? 'border-slate-200/80 bg-white/95'
+                          : 'border-white/15 bg-slate-950/90'
+                      }`}
+                    >
+                      {isSearchingCities && (
+                        <div className={`px-4 py-3 text-sm font-semibold border-b ${theme === 'light' ? 'text-slate-600 border-slate-200/80 bg-slate-50' : 'text-textSecondary border-white/10 bg-white/5'}`}>
+                          Searching locations...
+                        </div>
+                      )}
+
+                      {!isSearchingCities && citySuggestions.length === 0 ? (
+                        <div className={`px-4 py-3 text-sm font-semibold ${theme === 'light' ? 'text-slate-600 bg-slate-50' : 'text-textSecondary bg-white/5'}`}>
+                          No matches found.
+                        </div>
+                      ) : (
+                        citySuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            onClick={() => applyLocationSuggestion(suggestion)}
+                            className={`w-full text-left px-4 py-3 transition-colors border-b last:border-b-0 ${
+                              theme === 'light'
+                                ? 'hover:bg-slate-100 border-slate-200/80'
+                                : 'hover:bg-white/10 border-white/10'
+                            }`}
+                          >
+                            <div className={`text-base font-semibold ${theme === 'light' ? 'text-slate-900' : 'text-textPrimary'}`}>{suggestion.name}</div>
+                            <div className={`mt-0.5 text-sm ${theme === 'light' ? 'text-slate-600' : 'text-textSecondary'}`}>
+                              {[suggestion.admin1, suggestion.country].filter(Boolean).join(', ')}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
                 <label className="text-[10px] uppercase font-black text-textSecondary tracking-wider block mb-1">
-                  Latitude
+                  Latitude <span className="font-medium normal-case opacity-70">(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -157,13 +342,12 @@ export const Sidebar = () => {
                   onChange={(e) => setLat(e.target.value)}
                   placeholder="e.g. 48.86"
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-sm text-textPrimary placeholder-textSecondary/50 focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 transition-all"
-                  required
                 />
               </div>
 
               <div>
                 <label className="text-[10px] uppercase font-black text-textSecondary tracking-wider block mb-1">
-                  Longitude
+                  Longitude <span className="font-medium normal-case opacity-70">(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -171,7 +355,6 @@ export const Sidebar = () => {
                   onChange={(e) => setLon(e.target.value)}
                   placeholder="e.g. 2.35"
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-sm text-textPrimary placeholder-textSecondary/50 focus:outline-none focus:border-accent/40 focus:ring-1 focus:ring-accent/20 transition-all"
-                  required
                 />
               </div>
 
@@ -198,7 +381,7 @@ export const Sidebar = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-glow hover:shadow-lg transition-all"
+              className={`w-full bg-accent hover:opacity-90 disabled:opacity-50 ${theme === 'light' ? 'text-slate-900' : 'text-white'} font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-glow hover:shadow-lg transition-all`}
             >
               {isSubmitting ? (
                 <>
