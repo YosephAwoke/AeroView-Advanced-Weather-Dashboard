@@ -6,11 +6,15 @@ AeroView is a polished full-stack weather intelligence dashboard built with a **
 
 - 🔭 Multi-city weather tracking with active city switching
 - 🌈 Dynamic theme system that reacts to weather conditions
+ - ⚙️ Light-theme default with quick toggle; theme persists in localStorage
 - 📊 Rich telemetry panels for temperature, wind, humidity, pressure, UV, and AQI
 - 🎨 Glassmorphism UI with animated weather atmosphere background
+ - 🎛️ Canvas backdrop with toggle, FPS cap and prefers-reduced-motion support (pauses on background tabs)
 - 🛰️ Backend weather aggregation with caching and offline mock fallback
 - ⚡ Fast local development with Vite and Express
 - 🧠 MongoDB-backed city tracking with an in-memory fallback when MongoDB is unavailable
+ - ↕️ Drag-and-drop reorder of tracked cities (persisted to localStorage)
+ - 🔎 City-first add flow: type city name to autocomplete (Open-Meteo geocoding); latitude/longitude are optional
 
 ## 🧩 Tech Stack
 
@@ -99,6 +103,8 @@ npm run dev
 
 Then open the local Vite URL shown in the terminal.
 
+Note: Vite will attempt to use port 5173 by default; if that port is taken it automatically selects an alternate port (e.g. 5174). Check the terminal output for the correct local URL.
+
 ## 🧪 Available Scripts
 
 ### Backend
@@ -158,6 +164,8 @@ Removes a tracked city.
 ### `GET /api/weather?lat=...&lon=...&city=...`
 Returns detailed weather and air-quality telemetry for a location.
 
+Returned payload now includes optional timezone metadata when available (timezone, timezoneAbbreviation, utcOffsetSeconds, utcOffsetLabel) which the frontend uses to render the city-local clock.
+
 ## 🌦️ How It Works
 
 1. The frontend loads the city list from the backend.
@@ -172,6 +180,9 @@ Returns detailed weather and air-quality telemetry for a location.
 - If MongoDB is offline, the app should still run using in-memory fallback mode.
 - If weather data appears delayed on first load, check whether the backend or browser is still downloading the initial bundle.
 - If ports are already in use, stop the existing dev servers or change the port in your environment.
+
+- If the canvas backdrop feels heavy or you prefer reduced motion, use the HUD toggle (bottom-center) to disable animations or enable your OS `prefers-reduced-motion` setting — the app respects that preference and will render a single static frame.
+- If the app opens to a white page after reload, check the Vite terminal for the actual served port (it may have changed if the default port was busy) and open that URL in the browser.
 
 ## 📌 Notes
 
