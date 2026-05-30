@@ -4,6 +4,7 @@ import { useWeatherTheme } from './hooks/useWeatherTheme';
 import { WeatherAtmosphere } from './components/WeatherAtmosphere';
 import { Sidebar } from './components/Sidebar';
 import { Activity } from 'lucide-react';
+import Footer from './components/Footer';
 
 const MainAnalyticsDashboard = lazy(() =>
   import('./components/MainAnalyticsDashboard').then((module) => ({
@@ -80,6 +81,8 @@ const DashboardContent = () => {
         <span className="text-textSecondary">Backdrop Render:</span>
         <span className="text-accent font-extrabold tracking-widest">{getPhysicsModelLabel(weather)} {atmoEnabled ? '(60 FPS)' : '(disabled)'}</span>
       </button>
+      
+      <Footer />
       
       {/* Dynamic Ambient Blur Backdrop Orbs */}
       <div className="absolute top-[20%] left-[10%] w-[450px] h-[450px] bg-accent/5 rounded-full blur-[160px] pointer-events-none z-0 transition-colors duration-1000" />

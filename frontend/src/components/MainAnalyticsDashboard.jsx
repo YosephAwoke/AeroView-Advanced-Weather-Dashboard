@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWeather } from '../context/WeatherContext';
 import { useWeatherTheme } from '../hooks/useWeatherTheme';
 import { getWeatherIcon, getConditionLabel } from './CityMinicard';
@@ -12,16 +12,24 @@ import {
 } from 'recharts';
 
 export const MainAnalyticsDashboard = () => {
-  const { activeWeather, isLoading, refreshData } = useWeather();
+  const { activeCity, activeWeather, isLoading, refreshData } = useWeather();
   const { theme, weather } = useWeatherTheme();
   const [activeTab, setActiveTab] = useState('hourly'); // 'hourly' or 'weekly'
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [now, setNow] = useState(0);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshData();
     setTimeout(() => setIsRefreshing(false), 800);
   };
+
+  useEffect(() => {
+    const updateNow = () => setNow(Date.now());
+    updateNow();
+    const interval = setInterval(updateNow, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 1. Loading shimmer skeleton (padded)
   if (isLoading && !activeWeather) {
@@ -62,8 +70,19 @@ export const MainAnalyticsDashboard = () => {
   const { cityName, current, hourly, daily, airQuality, offlineMock } = activeWeather;
   
   // Format localized system time
-  const localTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const localDate = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  const cityTime = (() => {
+    const offsetSeconds = activeWeather?.utcOffsetSeconds || 0;
+    const cityNow = new Date(now + offsetSeconds * 1000);
+    return new Intl.DateTimeFormat([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC'
+    }).format(cityNow);
+  })();
+  const cityLocation = activeCity ? [activeCity.name, activeCity.country].filter(Boolean).join(', ') : cityName;
+  const cityGmt = activeWeather?.utcOffsetLabel || 'GMT+0';
 
   // Map wind degrees to text vectors
   const getWindDirectionText = (deg) => {
@@ -103,37 +122,42 @@ export const MainAnalyticsDashboard = () => {
       
       {/* SECTION 1: MASTER DATA HEADER */}
       <section className="glass-panel p-5 flex items-center justify-between shadow-glass border-white/10">
-        <div>
-          <h2 className="text-2xl lg:text-4xl font-black text-textPrimary tracking-wide flex flex-wrap items-center gap-3">
-            {cityName}
-            <div className="flex gap-1.5">
-              <span className="text-[11px] tracking-widest font-extrabold uppercase py-1 px-2.5 rounded-lg bg-badgeBg border border-accent/25 text-accent">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <h2 className="text-2xl lg:text-4xl font-black text-textPrimary tracking-wide truncate">
+                {cityName}
+              </h2>
+              <span className="text-[11px] tracking-widest font-extrabold uppercase py-1 px-2.5 rounded-lg bg-badgeBg border border-accent/25 text-accent shrink-0">
                 Live Telemetry
               </span>
               {offlineMock && (
-                <span className="text-[11px] tracking-widest font-extrabold uppercase py-1 px-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-500 animate-pulse">
+                <span className="text-[11px] tracking-widest font-extrabold uppercase py-1 px-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-500 animate-pulse shrink-0">
                   Simulated
                 </span>
               )}
             </div>
-          </h2>
+            <span className="text-sm lg:text-base font-bold text-textSecondary bg-white/5 border border-white/5 px-3 py-1.5 rounded-lg whitespace-nowrap">
+              {cityLocation}
+            </span>
+          </div>
           <div className="flex items-center gap-4 text-textSecondary text-sm font-bold tracking-wide mt-2">
             <span className="flex items-center gap-1.5">
               <Calendar size={15} className="text-textSecondary opacity-90" /> {localDate}
             </span>
             <span className="w-[1.5px] h-4 bg-white/10" />
             <span className="flex items-center gap-1.5">
-              <Clock size={15} className="text-textSecondary opacity-90" /> Local: {localTime}
+              <Clock size={15} className="text-textSecondary opacity-90" /> Local: {cityTime} ({cityGmt})
             </span>
           </div>
         </div>
 
         <button
           onClick={handleRefresh}
-          className={`p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 text-textSecondary hover:text-textPrimary transition-all duration-300 ${isRefreshing ? 'animate-spin' : ''}`}
+          className={`p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 text-textSecondary hover:text-textPrimary transition-all duration-300 ${isRefreshing ? 'animate-spin' : ''}`}
           title="Force update cache"
         >
-          <RefreshCw size={16} />
+          <RefreshCw size={22} />
         </button>
       </section>
 

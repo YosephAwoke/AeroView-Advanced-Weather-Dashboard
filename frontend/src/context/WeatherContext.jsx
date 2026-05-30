@@ -231,12 +231,18 @@ export const WeatherProvider = ({ children }) => {
     return citiesData[activeCityId];
   };
 
+  const getActiveCity = () => {
+    if (!activeCityId) return null;
+    return cities.find(city => city._id === activeCityId) || null;
+  };
+
   return (
     <WeatherContext.Provider value={{
       cities,
       citiesData,
       activeCityId,
       setActiveCityId,
+      activeCity: getActiveCity(),
       activeWeather: getActiveCityWeather(),
       isLoading,
       error,

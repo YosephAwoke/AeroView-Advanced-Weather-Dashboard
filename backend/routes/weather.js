@@ -25,6 +25,17 @@ const getAqiCategory = (pm25) => {
   return { value: 200, status: 'Hazardous', color: '#7F1D1D' };
 };
 
+const getApproxUtcOffsetSeconds = (lon) => {
+  const offsetHours = Math.max(-12, Math.min(14, Math.round(parseFloat(lon) / 15)));
+  return offsetHours * 3600;
+};
+
+const formatUtcOffsetLabel = (seconds) => {
+  const totalHours = Math.round((seconds || 0) / 3600);
+  const sign = totalHours >= 0 ? '+' : '-';
+  return `GMT${sign}${Math.abs(totalHours)}`;
+};
+
 // ==========================================
 // RESILIENT TELEMETRY GENERATOR (OFFLINE MOCK FALLBACK)
 // ==========================================
@@ -40,6 +51,7 @@ const generateMockTelemetry = (cityName, lat, lon) => {
   let aqiColor = '#10B981';
 
   const nameLower = cityName.toLowerCase();
+  const utcOffsetSeconds = getApproxUtcOffsetSeconds(lon);
   
   if (nameLower.includes('london') || nameLower.includes('rain')) {
     condition = 'rainy';
@@ -111,7 +123,7 @@ const generateMockTelemetry = (cityName, lat, lon) => {
   for (let i = 0; i < 24; i++) {
     const d = new Date(now);
     d.setHours(now.getHours() + i);
-    hourlyTime.push(d.toISOString());
+    hourlyTime.push(new Date(d.getTime() + utcOffsetSeconds * 1000).toISOString());
     
     // Sinusoidal temperature curve over 24h
     const hourVal = d.getHours();
@@ -159,6 +171,10 @@ const generateMockTelemetry = (cityName, lat, lon) => {
     cityName,
     latitude: lat,
     longitude: lon,
+    timezone: 'UTC',
+    timezoneAbbreviation: formatUtcOffsetLabel(utcOffsetSeconds),
+    utcOffsetSeconds,
+    utcOffsetLabel: formatUtcOffsetLabel(utcOffsetSeconds),
     condition,
     current: {
       temp: Math.round(tempBase + Math.random() * 1.5),
@@ -253,6 +269,10 @@ router.get('/', async (req, res) => {
         cityName,
         latitude: roundedLat,
         longitude: roundedLon,
+        timezone: weather.timezone || 'UTC',
+        timezoneAbbreviation: weather.timezone_abbreviation || 'UTC',
+        utcOffsetSeconds: weather.utc_offset_seconds || 0,
+        utcOffsetLabel: formatUtcOffsetLabel(weather.utc_offset_seconds || 0),
         condition,
         current: {
           temp: weather.current.temperature_2m,
