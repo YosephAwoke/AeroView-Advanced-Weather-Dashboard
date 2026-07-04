@@ -28,7 +28,7 @@ export const WeatherProvider = ({ children }) => {
     return 'light';
   });
 
-  const BACKEND_URL = 'http://localhost:5000/api';
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
   // Helper: fetch with a timeout to prevent hanging if backend is down
   const fetchWithTimeout = async (url, timeoutMs = 6000) => {
