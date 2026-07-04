@@ -235,7 +235,12 @@ router.get('/', async (req, res) => {
     } else {
       const cachedData = await WeatherCache.findOne({ key: cacheKey });
       if (cachedData) {
-        return res.json({ ...cachedData.data, fromCache: true });
+        const cacheAgeMs = Date.now() - new Date(cachedData.createdAt).getTime();
+        if (cacheAgeMs < 15 * 60 * 1000) {
+          return res.json({ ...cachedData.data, fromCache: true });
+        }
+
+        await cachedData.deleteOne();
       }
     }
 
