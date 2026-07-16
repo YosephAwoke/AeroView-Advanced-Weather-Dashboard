@@ -5,6 +5,66 @@ const connectDB = require('./config/db');
 const City = require('./models/City');
 
 const app = express();
+app.set('trust proxy', 1);
+
+const allowedOrigins = new Set(
+  [
+    'http://localhost:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:4173'
+  ].concat(
+    (process.env.FRONTEND_ORIGIN || '')
+      .split(',')
+      .map(origin => origin.trim())
+      .filter(Boolean)
+  )
+);
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
+
+const requestBuckets = new Map();
+const createRateLimit = ({ windowMs, max }) => (req, res, next) => {
+  const identity = req.ip || req.headers['x-forwarded-for'] || 'anonymous';
+  const now = Date.now();
+  const bucket = requestBuckets.get(identity);
+
+  if (!bucket || now - bucket.startedAt >= windowMs) {
+    requestBuckets.set(identity, { startedAt: now, count: 1 });
+    return next();
+  }
+
+  if (bucket.count >= max) {
+    return res.status(429).json({ error: 'Too many requests. Please try again shortly.' });
+  }
+
+  bucket.count += 1;
+  requestBuckets.set(identity, bucket);
+  return next();
+};
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of requestBuckets.entries()) {
+    if (now - bucket.startedAt > 30 * 60 * 1000) {
+      requestBuckets.delete(key);
+    }
+  }
+}, 30 * 60 * 1000).unref();
 
 // Initialize global memoryCities array for dynamic local preview fallback
 global.memoryCities = [
@@ -18,7 +78,8 @@ global.memoryCities = [
 // 1. Establish Database Connection (awaited at startup below)
 
 // 2. Middlewares
-app.use(cors({ origin: '*' })); // Allow connections from Vite frontend
+app.use(cors(corsOptions));
+app.use(createRateLimit({ windowMs: 15 * 60 * 1000, max: 120 }));
 app.use(express.json());
 
 // 3. Database Preseeding Engine (for MongoDB cases)
@@ -46,8 +107,13 @@ const seedDefaultCities = async () => {
 
 // Startup: connect DB, seed defaults, then open the HTTP port
 const startServer = async () => {
-  await connectDB();
-  await seedDefaultCities();
+  try {
+    await connectDB();
+    await seedDefaultCities();
+  } catch (error) {
+    console.error('❌ Failed to start backend:', error.message);
+    process.exit(1);
+  }
 
   // 4. Mount API Routes
   app.use('/api/weather', require('./routes/weather'));

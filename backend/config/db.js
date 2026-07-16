@@ -18,8 +18,15 @@ const connectDB = async () => {
     console.log(`MongoDB Connected successfully: ${conn.connection.host}`);
     global.useMemoryDB = false;
   } catch (error) {
+    const allowMemoryFallback = process.env.ALLOW_MEMORY_DB_FALLBACK === 'true' || process.env.NODE_ENV !== 'production';
     console.warn(`\n⚠️  [DATABASE WARNING] Could not connect to MongoDB: ${error.message}`);
-    console.warn(`🚀 [FALLBACK] Activating high-performance In-Memory Database engine for local preview!\n`);
+
+    if (!allowMemoryFallback) {
+      console.error('❌ [DATABASE ERROR] Memory fallback is disabled in production. Refusing to start with an unavailable database.');
+      throw error;
+    }
+
+    console.warn(`🚀 [FALLBACK] Activating in-memory database mode for local preview only!\n`);
     global.useMemoryDB = true;
   }
 };

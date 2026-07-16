@@ -5,6 +5,8 @@ const WeatherCache = require('../models/WeatherCache');
 
 // Initialize in-memory cache fallback store
 global.memoryWeatherCache = global.memoryWeatherCache || {};
+const REAL_CACHE_TTL_MS = 15 * 60 * 1000;
+const MOCK_CACHE_TTL_MS = 2 * 60 * 1000;
 
 // Helper to map WMO weather codes to our five simplified categories
 const mapWmoToCondition = (code) => {
@@ -36,12 +38,24 @@ const formatUtcOffsetLabel = (seconds) => {
   return `GMT${sign}${Math.abs(totalHours)}`;
 };
 
+const getSeasonalBaselineTemp = (lat) => {
+  const parsedLat = Number.parseFloat(lat);
+  const safeLat = Number.isFinite(parsedLat) ? parsedLat : 0;
+  const month = new Date().getMonth();
+  const isNorthernHemisphere = safeLat >= 0;
+  const seasonalMonth = isNorthernHemisphere ? month : (month + 6) % 12;
+  const seasonalWave = Math.sin(((seasonalMonth - 1) / 12) * Math.PI * 2);
+  const latitudePenalty = Math.min(12, Math.abs(safeLat) * 0.14);
+
+  return Math.round(27 - latitudePenalty + seasonalWave * 6);
+};
+
 // ==========================================
 // RESILIENT TELEMETRY GENERATOR (OFFLINE MOCK FALLBACK)
 // ==========================================
 const generateMockTelemetry = (cityName, lat, lon) => {
   let condition = 'clear';
-  let tempBase = 22;
+  let tempBase = getSeasonalBaselineTemp(lat);
   let humidityBase = 60;
   let pressureBase = 1012;
   let windSpeedBase = 12;
@@ -55,7 +69,7 @@ const generateMockTelemetry = (cityName, lat, lon) => {
   
   if (nameLower.includes('london') || nameLower.includes('rain')) {
     condition = 'rainy';
-    tempBase = 12;
+    tempBase -= 8;
     humidityBase = 88;
     pressureBase = 1007;
     windSpeedBase = 20;
@@ -63,7 +77,7 @@ const generateMockTelemetry = (cityName, lat, lon) => {
     aqiBase = 18;
   } else if (nameLower.includes('tokyo') || nameLower.includes('dalian') || nameLower.includes('cloudy')) {
     condition = 'cloudy';
-    tempBase = 17;
+    tempBase -= 1;
     humidityBase = 72;
     pressureBase = 1015;
     windSpeedBase = 11;
@@ -73,7 +87,7 @@ const generateMockTelemetry = (cityName, lat, lon) => {
     aqiColor = '#FBBF24';
   } else if (nameLower.includes('moscow') || nameLower.includes('snowy')) {
     condition = 'snowy';
-    tempBase = -4;
+    tempBase -= 12;
     humidityBase = 85;
     pressureBase = 1009;
     windSpeedBase = 24;
@@ -83,14 +97,14 @@ const generateMockTelemetry = (cityName, lat, lon) => {
     // Let's make Addis Ababa stormy/cloudy fallback occasionally for testing visual modes
     if (nameLower.includes('addis')) {
       condition = 'clear';
-      tempBase = 24;
+      tempBase += 1;
       humidityBase = 48;
       pressureBase = 1016;
       windSpeedBase = 9;
       uvBase = 9;
     } else {
       condition = 'stormy';
-      tempBase = 15;
+      tempBase -= 4;
       humidityBase = 95;
       pressureBase = 997;
       windSpeedBase = 35;
@@ -100,11 +114,10 @@ const generateMockTelemetry = (cityName, lat, lon) => {
       aqiColor = '#FBBF24';
     }
   } else {
-    // New York, Sydney, Cairo, Rio
+    // New York, Sydney, Cairo, Rio and general fallback locations
     condition = 'clear';
-    tempBase = 25;
-    if (nameLower.includes('cairo')) tempBase = 33;
-    if (nameLower.includes('sydney')) tempBase = 21;
+    if (nameLower.includes('cairo')) tempBase += 7;
+    if (nameLower.includes('sydney')) tempBase -= 4;
     humidityBase = 42;
     pressureBase = 1018;
     windSpeedBase = 7;
@@ -220,8 +233,15 @@ router.get('/', async (req, res) => {
     return res.status(400).json({ error: 'Latitude and Longitude are required' });
   }
 
-  const roundedLat = parseFloat(lat).toFixed(2);
-  const roundedLon = parseFloat(lon).toFixed(2);
+  const parsedLat = Number.parseFloat(lat);
+  const parsedLon = Number.parseFloat(lon);
+
+  if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon)) {
+    return res.status(400).json({ error: 'Latitude and Longitude must be valid numbers' });
+  }
+
+  const roundedLat = parsedLat.toFixed(2);
+  const roundedLon = parsedLon.toFixed(2);
   const cacheKey = `${roundedLat}:${roundedLon}`;
   const cityName = city || 'Unknown Location';
 
@@ -236,7 +256,8 @@ router.get('/', async (req, res) => {
       const cachedData = await WeatherCache.findOne({ key: cacheKey });
       if (cachedData) {
         const cacheAgeMs = Date.now() - new Date(cachedData.createdAt).getTime();
-        if (cacheAgeMs < 15 * 60 * 1000) {
+        const ttlMs = cachedData.data?.offlineMock ? MOCK_CACHE_TTL_MS : REAL_CACHE_TTL_MS;
+        if (cacheAgeMs < ttlMs) {
           return res.json({ ...cachedData.data, fromCache: true });
         }
 
@@ -249,13 +270,17 @@ router.get('/', async (req, res) => {
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,uv_index&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,uv_index,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_sum&timezone=auto`;
       const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${roundedLat}&longitude=${roundedLon}&current=pm2_5,pm10,nitrogen_dioxide,ozone&timezone=auto`;
 
-      const [weatherRes, aqRes] = await Promise.all([
-        axios.get(weatherUrl, { timeout: 3500 }), // 3.5s timeout for fast offline triggers
-        axios.get(aqUrl, { timeout: 3500 })
+      const [weatherRes, aqRes] = await Promise.allSettled([
+        axios.get(weatherUrl, { timeout: 5500 }),
+        axios.get(aqUrl, { timeout: 5500 })
       ]);
 
-      const weather = weatherRes.data;
-      const aq = aqRes.data;
+      if (weatherRes.status !== 'fulfilled') {
+        throw weatherRes.reason || new Error('Weather API request failed');
+      }
+
+      const weather = weatherRes.value.data;
+      const aq = aqRes.status === 'fulfilled' ? aqRes.value.data : null;
 
       if (!weather || !weather.current) {
         throw new Error('Invalid response from Open-Meteo Forecast API');
@@ -324,7 +349,7 @@ router.get('/', async (req, res) => {
       if (global.useMemoryDB) {
         global.memoryWeatherCache[cacheKey] = {
           data: weatherPayload,
-          expiry: Date.now() + 15 * 60 * 1000
+          expiry: Date.now() + REAL_CACHE_TTL_MS
         };
       } else {
         await WeatherCache.create({ key: cacheKey, data: weatherPayload });
@@ -341,7 +366,7 @@ router.get('/', async (req, res) => {
       if (global.useMemoryDB) {
         global.memoryWeatherCache[cacheKey] = {
           data: mockPayload,
-          expiry: Date.now() + 15 * 60 * 1000
+          expiry: Date.now() + MOCK_CACHE_TTL_MS
         };
       } else {
         // If mongo is online but open-meteo is offline, store mock in MongoDB cache

@@ -28,7 +28,7 @@ export const WeatherProvider = ({ children }) => {
     return 'light';
   });
 
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api');
 
   // Helper: fetch with a timeout to prevent hanging if backend is down
   const fetchWithTimeout = async (url, timeoutMs = 6000) => {
@@ -101,18 +101,20 @@ export const WeatherProvider = ({ children }) => {
       const cachedActiveWeather = citiesDataRef.current[nextActiveCityId];
 
       if (!cachedActiveWeather && activeCity) {
-        const activeWeatherRes = await fetchWithTimeout(
-          `${BACKEND_URL}/weather?lat=${activeCity.lat}&lon=${activeCity.lon}&city=${encodeURIComponent(activeCity.name)}`,
-          6000
-        );
+        try {
+          const activeWeatherRes = await fetchWithTimeout(
+            `${BACKEND_URL}/weather?lat=${activeCity.lat}&lon=${activeCity.lon}&city=${encodeURIComponent(activeCity.name)}`,
+            12000
+          );
 
-        if (activeWeatherRes.ok) {
-          const activeWeatherJson = await activeWeatherRes.json();
-          setCitiesData(prev => ({ ...prev, [activeCity._id]: activeWeatherJson }));
+          if (activeWeatherRes.ok) {
+            const activeWeatherJson = await activeWeatherRes.json();
+            setCitiesData(prev => ({ ...prev, [activeCity._id]: activeWeatherJson }));
+          }
+        } catch (weatherError) {
+          console.error('Active city weather fetch failed:', weatherError);
         }
       }
-
-      setIsLoading(false);
 
       orderedCities.forEach((city) => {
         if (city._id === nextActiveCityId) return;
@@ -121,7 +123,7 @@ export const WeatherProvider = ({ children }) => {
           try {
             const res = await fetchWithTimeout(
               `${BACKEND_URL}/weather?lat=${city.lat}&lon=${city.lon}&city=${encodeURIComponent(city.name)}`,
-              8000
+              10000
             );
             if (!res.ok) return;
             const weatherJson = await res.json();
@@ -133,7 +135,7 @@ export const WeatherProvider = ({ children }) => {
       });
     } catch (err) {
       console.error('Core Context Loading Error:', err);
-      setError('Could not connect to the backend server. Please verify the Express backend is running on port 5000.');
+      setError('Could not connect to the backend or load the tracked cities list. Verify VITE_BACKEND_URL and the Render service.');
     } finally {
       setIsLoading(false);
     }

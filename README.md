@@ -81,9 +81,13 @@ Create a `.env` file inside `backend/`.
 ```env
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/weather
+ALLOW_MEMORY_DB_FALLBACK=true
+FRONTEND_ORIGIN=http://localhost:5173
 ```
 
 If MongoDB is unavailable, the backend will fall back to its in-memory preview mode so the app can still run locally.
+
+For production on Render, set `ALLOW_MEMORY_DB_FALLBACK=false` or leave it unset, and provide your Vercel origin through `FRONTEND_ORIGIN`. The backend will refuse to start if MongoDB is unreachable, which prevents a silent fake-data deployment.
 
 ### 4) Start the backend
 

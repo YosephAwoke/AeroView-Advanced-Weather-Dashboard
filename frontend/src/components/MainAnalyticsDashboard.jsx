@@ -51,6 +51,20 @@ export const MainAnalyticsDashboard = () => {
     );
   }
 
+  if (!activeWeather && activeCity) {
+    return (
+      <div className="flex-1 glass-panel border-white/10 p-10 flex flex-col items-center justify-center text-center gap-6 z-10 min-h-[450px]">
+        <div className="p-5 rounded-full bg-accent/10 border border-accent/25 text-accent animate-pulse">
+          <Sun size={56} className="animate-spin-slow" />
+        </div>
+        <h2 className="text-2xl font-black text-textPrimary tracking-wide">Loading Weather</h2>
+        <p className="text-sm text-textSecondary max-w-sm leading-relaxed font-semibold">
+          We found your tracked cities, but the live weather response is still warming up. The dashboard will update as soon as the backend returns fresh data.
+        </p>
+      </div>
+    );
+  }
+
   // 2. Empty showcase fallback state
   if (!activeWeather) {
     return (
